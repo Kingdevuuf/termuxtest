@@ -1,0 +1,15 @@
+.page{padding:20px;max-width:1100px;margin:0 auto}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.page-header h1{font-size:22px;color:#0f172a}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.filters button{padding:8px 14px;border-radius:20px;border:1px solid #e2e8f0;background:#fff;font-size:13px;color:#475569}
+.filters button.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.filters input[type=date]{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.metric{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.metric .label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.metric .value{font-size:26px;font-weight:700;color:#0f172a}
+.metric.green .value{color:#10b981}
+.metric.red .value{color:#ef4444}
+.metric.blue .value{color:#3b82f6}
+.chart-card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
