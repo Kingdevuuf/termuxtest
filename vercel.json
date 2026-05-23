@@ -1,7 +1,9 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
+  "version": 2,
   "rewrites": [
-    { "source": "/wingo", "destination": "/api/wingo" }
+    {
+      "source": "/wingo/:game",
+      "destination": "/api/wingo?wingo=:game"
+    }
   ]
 }
