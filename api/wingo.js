@@ -9,22 +9,40 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   
-  // Get 'wingo' parameter from query or POST body
-  let game = req.query.wingo;
+  let game = null;
   
+  // Get from query string (GET request)
+  if (req.query && req.query.wingo) {
+    game = req.query.wingo;
+  }
+  
+  // Get from POST body
   if (!game && req.method === 'POST') {
     try {
+      // Handle JSON body
       if (req.body) {
-        game = req.body.wingo;
+        if (typeof req.body === 'object' && req.body.wingo) {
+          game = req.body.wingo;
+        } else if (typeof req.body === 'string') {
+          const parsed = JSON.parse(req.body);
+          if (parsed.wingo) game = parsed.wingo;
+        }
       }
     } catch (e) {
-      // ignore
+      // Not JSON, try form data
+      try {
+        if (req.body && typeof req.body === 'string') {
+          const params = new URLSearchParams(req.body);
+          game = params.get('wingo');
+        }
+      } catch (e2) {
+        // Ignore
+      }
     }
   }
   
   game = game || '30s';
   
-  // Game type mapping
   const gameMap = {
     '30s': 'WinGo_30S',
     '30sec': 'WinGo_30S',
@@ -44,15 +62,20 @@ export default async function handler(req, res) {
   const apiUrl = `https://draw.ar-lottery01.com/WinGo/${apiPath}/GetHistoryIssuePage.json?ts=${Date.now()}`;
   
   try {
+    // Use node-fetch or native fetch (Node 18+)
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0'
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
       }
     });
     
     if (response.ok) {
       const data = await response.json();
+      // Debug log (Vercel logs mein dikhega)
+      console.log('API Response:', JSON.stringify(data));
+      
       if (data && data.data && data.data.list && data.data.list[0] && data.data.list[0].number) {
         return res.status(200).send(data.data.list[0].number);
       }
@@ -61,6 +84,7 @@ export default async function handler(req, res) {
     return res.status(200).send('0');
     
   } catch (error) {
+    console.error('Error:', error.message);
     return res.status(200).send('0');
   }
 }
