@@ -1,1 +1,5 @@
-{ "name": "wingo-vercel", "version": "1.0.0", "private": true }
+{
+  "name": "wingo-api",
+  "version": "1.0.0",
+  "description": "Wingo Lottery API Proxy"
+}
