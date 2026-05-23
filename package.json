@@ -1,5 +1,8 @@
 {
   "name": "wingo-api",
   "version": "1.0.0",
-  "description": "Wingo Lottery API Proxy"
+  "description": "Wingo Lottery API Proxy",
+  "engines": {
+    "node": "18.x"
+  }
 }
