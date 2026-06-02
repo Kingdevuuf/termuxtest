@@ -1,9 +1,8 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/wingo/:game",
-      "destination": "/api/wingo?wingo=:game"
+  "functions": {
+    "pages/api/download.js": {
+      "maxDuration": 60,
+      "memory": 1024
     }
-  ]
+  }
 }
