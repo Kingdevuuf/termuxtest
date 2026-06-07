@@ -1,9 +1,6 @@
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
 
 const execPromise = promisify(exec);
 const app = express();
@@ -19,44 +16,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// yt-dlp binary path (will be downloaded on first run)
-const YTDLP_PATH = path.join('/tmp', 'yt-dlp');
-let downloadInProgress = false;
-
-// Download yt-dlp binary if not exists
-async function ensureYtDlp() {
-    if (fs.existsSync(YTDLP_PATH)) {
-        return true;
-    }
-    
-    // Wait if download already in progress
-    if (downloadInProgress) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return ensureYtDlp();
-    }
-    
-    downloadInProgress = true;
-    
-    return new Promise((resolve, reject) => {
-        const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
-        const file = fs.createWriteStream(YTDLP_PATH);
-        
-        https.get(url, (response) => {
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                fs.chmodSync(YTDLP_PATH, '755'); // Execute permission
-                downloadInProgress = false;
-                resolve(true);
-            });
-        }).on('error', (err) => {
-            fs.unlinkSync(YTDLP_PATH);
-            downloadInProgress = false;
-            reject(err);
-        });
-    });
-}
-
 function detectPlatform(url) {
     const platforms = {
         'youtube': ['youtube.com', 'youtu.be'],
@@ -64,10 +23,7 @@ function detectPlatform(url) {
         'facebook': ['facebook.com', 'fb.watch'],
         'twitter': ['twitter.com', 'x.com'],
         'reddit': ['reddit.com', 'redd.it'],
-        'tiktok': ['tiktok.com'],
-        'linkedin': ['linkedin.com'],
-        'twitch': ['twitch.tv'],
-        'vimeo': ['vimeo.com']
+        'tiktok': ['tiktok.com']
     };
     for (const [platform, domains] of Object.entries(platforms)) {
         if (domains.some(d => url.includes(d))) return platform;
@@ -76,27 +32,36 @@ function detectPlatform(url) {
 }
 
 async function getDirectVideoUrl(url) {
-    await ensureYtDlp();
-    
     try {
-        // Use downloaded binary directly - no installation needed!
-        const command = `${YTDLP_PATH} -f "best[ext=mp4]/best" -g --no-warnings "${url}"`;
-        const { stdout, stderr } = await execPromise(command, { timeout: 30000 });
+        // Multiple formats try karo - better error handling
+        const formats = [
+            `yt-dlp -f "best[ext=mp4]/best" -g --no-warnings "${url}"`,
+            `yt-dlp -f "best" -g --no-warnings "${url}"`,
+            `yt-dlp -g --no-warnings "${url}"`
+        ];
         
-        if (stderr && !stdout) throw new Error(stderr);
-        const directUrl = stdout.trim().split('\n')[0];
-        if (!directUrl || directUrl === 'ERROR') throw new Error('No video URL found');
-        return directUrl;
+        for (const command of formats) {
+            try {
+                const { stdout, stderr } = await execPromise(command, { timeout: 30000 });
+                if (stdout && stdout.trim()) {
+                    const directUrl = stdout.trim().split('\n')[0];
+                    if (directUrl && directUrl.startsWith('http')) {
+                        return directUrl;
+                    }
+                }
+            } catch (e) {
+                continue; // Next format try karo
+            }
+        }
+        throw new Error('No video URL found - maybe platform needs cookies?');
     } catch (error) {
-        throw new Error(`Failed: ${error.message}`);
+        throw new Error(`Extraction failed: ${error.message}`);
     }
 }
 
 async function getMetadata(url) {
-    await ensureYtDlp();
-    
     try {
-        const command = `${YTDLP_PATH} -j --no-warnings "${url}"`;
+        const command = `yt-dlp -j --no-warnings "${url}"`;
         const { stdout } = await execPromise(command, { timeout: 30000 });
         const data = JSON.parse(stdout);
         return {
@@ -114,7 +79,7 @@ async function getMetadata(url) {
 // GET endpoint
 app.get('/api/download', async (req, res) => {
     const url = req.query.url;
-    if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+    if (!url) return res.status(400).json({ success: false, error: 'URL parameter required' });
     if (!url.startsWith('http')) return res.status(400).json({ success: false, error: 'Invalid URL' });
 
     try {
@@ -134,7 +99,7 @@ app.get('/api/download', async (req, res) => {
 // POST endpoint
 app.post('/api/download', async (req, res) => {
     const url = req.body.url;
-    if (!url) return res.status(400).json({ success: false, error: 'URL required' });
+    if (!url) return res.status(400).json({ success: false, error: 'URL required in body' });
 
     try {
         const directUrl = await getDirectVideoUrl(url);
@@ -152,12 +117,8 @@ app.post('/api/download', async (req, res) => {
 
 // Health check
 app.get('/', (req, res) => {
-    res.json({ status: 'OK', message: 'Video Download API is running' });
+    res.json({ status: 'OK', message: 'Video Download API is running on Render' });
 });
 
-module.exports = app;
-
-if (require.main === module) {
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => console.log(`Server running on port ${port}`));
-}
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server running on port ${port}`));
