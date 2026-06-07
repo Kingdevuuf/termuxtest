@@ -1,6 +1,9 @@
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
 
 const execPromise = promisify(exec);
 const app = express();
@@ -12,10 +15,47 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
 });
+
+// yt-dlp binary path (will be downloaded on first run)
+const YTDLP_PATH = path.join('/tmp', 'yt-dlp');
+let downloadInProgress = false;
+
+// Download yt-dlp binary if not exists
+async function ensureYtDlp() {
+    if (fs.existsSync(YTDLP_PATH)) {
+        return true;
+    }
+    
+    // Wait if download already in progress
+    if (downloadInProgress) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return ensureYtDlp();
+    }
+    
+    downloadInProgress = true;
+    
+    return new Promise((resolve, reject) => {
+        const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
+        const file = fs.createWriteStream(YTDLP_PATH);
+        
+        https.get(url, (response) => {
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close();
+                fs.chmodSync(YTDLP_PATH, '755'); // Execute permission
+                downloadInProgress = false;
+                resolve(true);
+            });
+        }).on('error', (err) => {
+            fs.unlinkSync(YTDLP_PATH);
+            downloadInProgress = false;
+            reject(err);
+        });
+    });
+}
 
 function detectPlatform(url) {
     const platforms = {
@@ -36,9 +76,13 @@ function detectPlatform(url) {
 }
 
 async function getDirectVideoUrl(url) {
+    await ensureYtDlp();
+    
     try {
-        const command = `yt-dlp -f "best[ext=mp4]/best" -g --no-warnings "${url}"`;
+        // Use downloaded binary directly - no installation needed!
+        const command = `${YTDLP_PATH} -f "best[ext=mp4]/best" -g --no-warnings "${url}"`;
         const { stdout, stderr } = await execPromise(command, { timeout: 30000 });
+        
         if (stderr && !stdout) throw new Error(stderr);
         const directUrl = stdout.trim().split('\n')[0];
         if (!directUrl || directUrl === 'ERROR') throw new Error('No video URL found');
@@ -49,8 +93,10 @@ async function getDirectVideoUrl(url) {
 }
 
 async function getMetadata(url) {
+    await ensureYtDlp();
+    
     try {
-        const command = `yt-dlp -j --no-warnings "${url}"`;
+        const command = `${YTDLP_PATH} -j --no-warnings "${url}"`;
         const { stdout } = await execPromise(command, { timeout: 30000 });
         const data = JSON.parse(stdout);
         return {
@@ -111,7 +157,6 @@ app.get('/', (req, res) => {
 
 module.exports = app;
 
-// For local testing
 if (require.main === module) {
     const port = process.env.PORT || 3000;
     app.listen(port, () => console.log(`Server running on port ${port}`));
