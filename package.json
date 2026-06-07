@@ -1,12 +1,15 @@
 {
   "name": "video-download-api",
   "version": "1.0.0",
-  "description": "Multi-platform video download API",
+  "description": "Multi-platform video download API for Render",
   "main": "api/download.js",
   "scripts": {
-    "start": "node api/download.js"
+    "start": "bash start.sh"
   },
   "dependencies": {
     "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
